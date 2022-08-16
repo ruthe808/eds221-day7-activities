@@ -1,0 +1,106 @@
+---
+title: "bird_joins"
+author: "Ruth Enriquez"
+date: "2022-08-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(tidyverse)
+library(lubridate)
+library(janitor)
+```
+
+Read in the data sets and store the data frames as bird_observations, sites, surveys, and taxalist (it should be clear from the raw file names which is which)
+
+```{r}
+bird_observations <- read_csv(here("data","52_pp52_birds_1.csv"))
+
+sites <- read_csv(here("data","52_pp52_sites_1.csv"))
+
+survey <- read_csv(here("data","52_pp52_surveys_1.csv"))
+
+taxalist <- read_csv(here("data","52_pp52_taxalist_1.csv"))
+```
+
+## **Task 1: Joins on birds**
+
+Create a subset of bird_observations called birds_subset that only contains observations for birds with species id "BHCO" and "RWBL", and from sites with site ID "LI-W" and "NU-C"
+
+```{r}
+birds_subset <- bird_observations |> 
+  filter(species_id %in% c("BHCO", "RWBL") &
+           site_id %in% c("LI-W", "NU-C"))
+```
+
+### **Left join practice**
+
+-   Use left join(s) to update `birds_subset` so that it also includes `sites` and `taxalist` information. For each join, include an explicit argument saying which variable you are joining by (even if it will just assume the correct one for you). Store the updated data frame as `birds_left`. Make sure to look at the output - is what it contains consistent with what you expected it to contain?
+
+```{r}
+bird_left <- birds_subset |> 
+  left_join(y = sites, by = "site_id") |>
+  left_join(y = taxalist, by = "species_id")
+```
+
+### **Full join practice**
+
+-   Write code to `full_join` the `birds_subset` and `sites` data into a new object called `birds_full`. Explicitly include the variable you're joining by. Look at the output. Is it what you expected?
+
+```{r}
+birds_full <- birds_subset |> 
+  full_join(y = sites, by = "site_id")
+```
+
+### **Inner join practice**
+
+-   Write code to `inner_join()` the `birds_subset` and `taxalist`, called `birds_inner`. Include an argument for what variable you'll be joining by.
+
+```{r}
+birds_inner <- birds_subset |> 
+  inner_join(y = taxalist, by = "species_id")
+```
+
+-   What would you get if instead of `inner_join()` you'd used `left_join()` for this example? Try it out & check. Why does that make sense for this scenario? It what case would you expect the outcome to differ from an `inner_join()`?
+
+```{r}
+birds_compare_left <- birds_subset |> 
+  left_join(y = taxalist, by = "species_id")
+```
+
+## **Task 2: Data wrangling and visualization with birds**
+
+Starting with your birds object, rename the notes column to bird_obs_notes (so this doesn't conflict with notes in the surveys dataset
+
+```{r}
+birds <- bird_observations |> 
+  rename(birds_obs_notes = notes)
+```
+
+Then, create a subset that contains all observations in the birds dataset, joins the taxonomic, site and survey information to it, and is finally limited to only columns survey_date, common_name, park_name, and bird_count. You can decide the order that you want to create this in (e.g. limit the columns first, then join, or the other way around).
+
+```{r}
+all_birds <- birds |> 
+  left_join(y = taxalist, by = "species_id") |> 
+  left_join(y = sites, by = "site_id") |> 
+  left_join(y = survey, by = c("survey_id", "site_id")) |> 
+  select("survey_date", "common_name", "park_name", "bird_count")
+```
+
+Use lubridate::month() to add a new column called survey_month, containing only the month number. Then, convert the month number to a factor (again within mutate()) Learn a new function on your own! Use dplyr::relocate() to move the new survey_month column to immediately after the survey_date column. You can do this in a separate code chunk, or pipe straight into it from your existing code
+
+-   Find the total number of birds observed by *park* and *month* (i.e., you\'ll `group_by(park_name, survey_month)`)
+
+-   Filter to only include parks \"Lindo\", \"Orme\", \"Palomino\" and \"Sonrisa\"
+
+```{r}
+month_birds <-all_birds |> 
+  mutate(survey_month = month(survey_date)) |> 
+  mutate(survey_month = factor(survey_month)) |> 
+  dplyr::relocate(survey_month, .after = survey_date) |> 
+  group_by(park_name, survey_month) |> 
+  summarize(sum(bird_count)) |> 
+  filter(park_name %in% c("Lindo", "Orme", "Palomino", "Sonrisa"))
+```
